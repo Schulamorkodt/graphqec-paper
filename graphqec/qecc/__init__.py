@@ -1,10 +1,12 @@
 from graphqec.qecc.code import *
 from graphqec.qecc.color_code.sydney_color_code import TriangleColorCode
 from graphqec.qecc.ldpc_code.bbcode import ETHBBCode
+from graphqec.qecc.ldpc_code.margulis_code import MargulisCodeBlueprint
 from graphqec.qecc.ldpc_code.shyps import SHYPSCode
 from graphqec.qecc.ldpc_code.toric4d import Toric4DCode
 from graphqec.qecc.surface_code.stim_block_memory import RotatedSurfaceCode
 from graphqec.qecc.surface_code.ustc_block_memory import ZuchongzhiSurfaceCode
+
 
 __all__ = [
     'QuantumCode',
@@ -13,6 +15,7 @@ __all__ = [
     'ZuchongzhiSurfaceCode',
     'TriangleColorCode',
     'ETHBBCode',
+    'MargulisCodeBlueprint',
     'RotatedSurfaceCode',
     'SHYPSCode',
     "Toric4DCode",

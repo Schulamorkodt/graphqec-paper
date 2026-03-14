@@ -14,6 +14,7 @@ from graphqec.qecc.utils import (
 
 __all__ = [
     'ETHBBCode',''
+    'MargulisCodeBlueprint',
     'build_memory_circuit',
     'build_cnot_circuit'
     ]

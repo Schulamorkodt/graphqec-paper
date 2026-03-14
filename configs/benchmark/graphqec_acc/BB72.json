@@ -1,7 +1,7 @@
 {
     "code": {
-        "code_type": "ETHBBCode",
-        "profile_name": "[[72,12,6]]"
+        "code_type": "MargulisCodeBlueprint",
+        "npz_path": "margulis_240.npz"
     },
     "decoder": {
         "name": "GraphLinearAttnDecoderV2A",
