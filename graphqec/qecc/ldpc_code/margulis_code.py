@@ -1,7 +1,8 @@
 import numpy as np
+import stim
 from dataclasses import dataclass
 from graphqec.qecc.code import QuantumCode, TannerGraph, TemporalTannerGraph
-from graphqec.qecc.ldpc_code.bbcode import ETHBBCode, build_memory_circuit
+from graphqec.qecc.ldpc_code.bbcode import ETHBBCode
 from graphqec.qecc.utils import (
     get_bipartite_indices,
     get_data_to_logical_from_pcm,
@@ -40,7 +41,8 @@ class MargulisCodeBlueprint:
 class MargulisCode(QuantumCode):
     """
     Margulis-240 code as a full QuantumCode subclass.
-    Reuses ETHBBCode's tanner graph and circuit logic via the blueprint.
+    Uses a direct CSS circuit builder based on Hx/Hz parity check matrices.
+    Code parameters: [[240, 8, ~20]]
     """
 
     def __init__(self, blueprint: MargulisCodeBlueprint,
@@ -63,15 +65,104 @@ class MargulisCode(QuantumCode):
         return ETHBBCode.get_tanner_graph(self)
 
     def get_syndrome_circuit(self, num_cycle: int, *,
-                             physical_error_rate: float = 0, **kwargs):
-        circuit = build_memory_circuit(
-            self.blue_print, physical_error_rate,
-            num_cycle + 1, z_basis=True, use_both=True
-        )
-        return circuit.without_noise() if physical_error_rate == 0 else circuit
+                             physical_error_rate: float = 0, **kwargs) -> stim.Circuit:
+        """
+        Build a Z-basis CSS memory circuit directly from Hx/Hz.
+        Works correctly for arbitrary CSS codes including Margulis codes.
+        """
+        Hx = self.blue_print.Hx
+        Hz = self.blue_print.Hz
+        Lz = self.blue_print.Lz
+        p = physical_error_rate
+
+        n = Hx.shape[1]
+        n_cx = Hx.shape[0]
+        n_cz = Hz.shape[0]
+        x_anc = list(range(n, n + n_cx))
+        z_anc = list(range(n + n_cx, n + n_cx + n_cz))
+
+        circuit = stim.Circuit()
+
+        # Initialize data qubits in Z basis
+        for i in range(n):
+            circuit.append('R', [i])
+            if p > 0:
+                circuit.append('X_ERROR', [i], p)
+        circuit.append('TICK')
+
+        for rnd in range(num_cycle):
+            for q in x_anc + z_anc:
+                circuit.append('R', [q])
+                if p > 0:
+                    circuit.append('X_ERROR', [q], p)
+            circuit.append('TICK')
+
+            circuit.append('H', x_anc)
+            circuit.append('TICK')
+
+            for i in range(n_cx):
+                for d in np.where(Hx[i])[0]:
+                    circuit.append('CNOT', [x_anc[i], int(d)])
+                    if p > 0:
+                        circuit.append('DEPOLARIZE2', [x_anc[i], int(d)], p)
+            circuit.append('TICK')
+
+            for i in range(n_cz):
+                for d in np.where(Hz[i])[0]:
+                    circuit.append('CNOT', [int(d), z_anc[i]])
+                    if p > 0:
+                        circuit.append('DEPOLARIZE2', [int(d), z_anc[i]], p)
+            circuit.append('TICK')
+
+            circuit.append('H', x_anc)
+            circuit.append('TICK')
+
+            if p > 0:
+                circuit.append('X_ERROR', x_anc + z_anc, p)
+            circuit.append('M', x_anc + z_anc)
+
+            total = n_cx + n_cz
+
+            # Z check detectors (deterministic from round 0)
+            for i in range(n_cz):
+                rec = stim.target_rec(-total + n_cx + i)
+                if rnd == 0:
+                    circuit.append('DETECTOR', [rec])
+                else:
+                    prev_rec = stim.target_rec(-total - total + n_cx + i)
+                    circuit.append('DETECTOR', [rec, prev_rec])
+
+            # X check detectors (only from round 1)
+            if rnd > 0:
+                for i in range(n_cx):
+                    rec = stim.target_rec(-total + i)
+                    prev_rec = stim.target_rec(-total - total + i)
+                    circuit.append('DETECTOR', [rec, prev_rec])
+
+            circuit.append('TICK')
+
+        # Final data measurement
+        if p > 0:
+            circuit.append('X_ERROR', list(range(n)), p)
+        circuit.append('M', list(range(n)))
+
+        total = n_cx + n_cz
+
+        # Final Z stabilizer detectors
+        for i, row in enumerate(Hz):
+            targets = [stim.target_rec(-n + int(d)) for d in np.where(row)[0]]
+            targets.append(stim.target_rec(-n - total + n_cx + i))
+            circuit.append('DETECTOR', targets)
+
+        # Logical observables
+        for i, row in enumerate(Lz):
+            targets = [stim.target_rec(-n + int(d)) for d in np.where(row)[0]]
+            circuit.append('OBSERVABLE_INCLUDE', targets, i)
+
+        return circuit if p > 0 else circuit.without_noise()
 
     def get_dem(self, num_cycle, *, physical_error_rate, **kwargs):
-        assert physical_error_rate > 0
+        assert physical_error_rate > 0, "physical_error_rate must be > 0"
         return self.get_syndrome_circuit(
             num_cycle, physical_error_rate=physical_error_rate
         ).detector_error_model()
