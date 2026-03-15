@@ -6,7 +6,7 @@ import numpy as np
 import logging
 from datetime import datetime
 from graphqec.qecc.ldpc_code.margulis_code import MargulisCode
-from graphqec.decoder.nn.train_utils import build_neural_decoder
+from graphqec.decoder.nn import get_model
 
 
 def setup_logging(save_dir):
@@ -17,7 +17,7 @@ def setup_logging(save_dir):
         format='%(asctime)s | %(message)s',
         handlers=[
             logging.FileHandler(log_path),
-            logging.StreamHandler()  # also print to stdout
+            logging.StreamHandler()
         ]
     )
     return logging.getLogger(__name__)
@@ -42,7 +42,7 @@ def main(config_path: str):
     tanner_graph = code.get_tanner_graph().to(device)
     model_cfg = dict(cfg['model'])
     name = model_cfg.pop('name')
-    decoder = build_neural_decoder(tanner_graph, {'name': name, **model_cfg}).to(device)
+    decoder = get_model(name=name, tanner_graph=tanner_graph, **model_cfg).to(device)
     logger.info(f'Decoder built: {sum(p.numel() for p in decoder.parameters()):,} parameters')
 
     optimizer = torch.optim.AdamW(
@@ -69,7 +69,7 @@ def main(config_path: str):
     batch_size = cfg['dataloader']['batch_size']
     num_epochs = cfg['training']['num_epochs']
 
-    # Save results log as CSV
+    # Save results as CSV
     results_path = os.path.join(save_dir, 'results.csv')
     if not os.path.exists(results_path):
         with open(results_path, 'w') as f:
@@ -123,7 +123,6 @@ def main(config_path: str):
 
         mean_acc = np.mean(val_accs)
 
-        # Log to console and file
         logger.info(f'Epoch {epoch+1}/{num_epochs} | Loss: {avg_loss:.4f} | Val acc: {mean_acc:.4f}')
         for p, acc in zip(error_rates, val_accs):
             logger.info(f'  p={p:.3f}: {acc:.4f}')
