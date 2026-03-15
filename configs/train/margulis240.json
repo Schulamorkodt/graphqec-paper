@@ -1,1 +1,40 @@
-
+{
+    "code": {
+        "code_type": "MargulisCode",
+        "npz_path": "margulis_240.npz"
+    },
+    "model": {
+        "name": "GraphLinearAttnDecoderV2A",
+        "encoder_dim": 192,
+        "decoder_dim": 256,
+        "readout_dim": 192,
+        "num_encoder_layers": 5,
+        "num_decoder_layers": 4,
+        "num_readout_layers": 16,
+        "num_heads": 8,
+        "scatter_activation": "tanh",
+        "scatter_fn": "mul",
+        "ffn_dim_multiplier": 3.0,
+        "multiple_of": 32,
+        "norm_eps": 1e-05
+    },
+    "dataloader": {
+        "batch_size": 64,
+        "num_train": 1000000,
+        "num_validation": 10000,
+        "num_workers": 4,
+        "shuffle": true
+    },
+    "training": {
+        "seed": 424242,
+        "lr": 1e-4,
+        "weight_decay": 0.01,
+        "beta1": 0.99,
+        "beta2": 0.9999,
+        "optimizer": "adamw",
+        "num_epochs": 100,
+        "error_rates": [0.001, 0.002, 0.003, 0.005, 0.007, 0.01],
+        "num_cycles": [4, 6, 8, 10, 12],
+        "save_dir": "results/margulis240"
+    }
+}
