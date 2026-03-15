@@ -45,6 +45,11 @@ def main(config_path: str):
     decoder = get_model(name=name, tanner_graph=tanner_graph, **model_cfg).to(device)
     logger.info(f'Decoder built: {sum(p.numel() for p in decoder.parameters()):,} parameters')
 
+    # Get split sizes directly from decoder
+    num_init_check = int(decoder.num_init_check)
+    num_cycle_check = int(decoder.num_cycle_check)
+    logger.info(f'num_init_check={num_init_check}, num_cycle_check={num_cycle_check}')
+
     optimizer = torch.optim.AdamW(
         decoder.parameters(),
         lr=cfg['training']['lr'],
@@ -89,14 +94,21 @@ def main(config_path: str):
 
                 for i in range(0, len(syndromes), batch_size):
                     syn_batch = torch.tensor(
-                        syndromes[i:i+batch_size], dtype=torch.float32
+                        syndromes[i:i+batch_size], dtype=torch.long
                     ).to(device)
                     obs_batch = torch.tensor(
                         obs_flips[i:i+batch_size], dtype=torch.float32
                     ).to(device)
 
+                    # Split exactly as _decode() does
+                    encoding = syn_batch[:, :num_init_check]
+                    cycle = syn_batch[:, num_init_check:-num_init_check].reshape(
+                        syn_batch.shape[0], -1, num_cycle_check
+                    )
+                    readout = syn_batch[:, -num_init_check:]
+
                     optimizer.zero_grad()
-                    logits = decoder(syn_batch)
+                    logits = decoder((encoding, cycle, readout))
                     loss = torch.nn.functional.binary_cross_entropy_with_logits(
                         logits, obs_batch
                     )
