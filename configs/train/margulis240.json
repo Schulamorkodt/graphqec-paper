@@ -34,7 +34,7 @@
         "optimizer": "adamw",
         "num_epochs": 100,
         "error_rates": [0.001, 0.002, 0.003, 0.005, 0.007, 0.01],
-        "num_cycles": [4, 6, 8, 10, 12],
+        "num_cycles": [8, 10, 12, 14, 16],
         "save_dir": "results/margulis240"
     }
 }
